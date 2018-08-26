@@ -215,6 +215,7 @@ struct CmdLineParams
 	bool _isPointYValid = false;
 
 	bool _isSessionFile = false;
+    generic_string _WorkplaceFile;
 	bool _isRecursive = false;
 
 	LangType _langType = L_EXTERNAL;

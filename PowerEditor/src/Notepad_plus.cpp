@@ -5861,7 +5861,7 @@ void Notepad_plus::launchFileBrowser(const vector<generic_string> & folders)
 }
 
 
-void Notepad_plus::launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int panelID)
+void Notepad_plus::launchProjectPanelEx(int cmdID, ProjectPanel ** pProjPanel, int panelID, generic_string WorkplaceFile)
 {
 	if (!(*pProjPanel))
 	{
@@ -5869,7 +5869,11 @@ void Notepad_plus::launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int
 
 		(*pProjPanel) = new ProjectPanel;
 		(*pProjPanel)->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf());
-		(*pProjPanel)->setWorkSpaceFilePath(pNppParam->getWorkSpaceFilePath(panelID));
+		if (WorkplaceFile.length() > 0) {
+		  (*pProjPanel)->setWorkSpaceFilePath(WorkplaceFile.c_str());
+		} else {
+		  (*pProjPanel)->setWorkSpaceFilePath(pNppParam->getWorkSpaceFilePath(panelID));
+		}
 
 		tTbData	data;
 		memset(&data, 0, sizeof(data));
@@ -5907,6 +5911,10 @@ void Notepad_plus::launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int
 	(*pProjPanel)->display();
 }
 
+void Notepad_plus::launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int panelID)
+{
+  launchProjectPanelEx(cmdID, pProjPanel, panelID, L"");
+}
 
 void Notepad_plus::launchDocMap()
 {

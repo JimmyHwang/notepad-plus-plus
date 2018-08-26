@@ -262,6 +262,15 @@ int getNumberFromParam(char paramName, ParamVector & params, bool & isParamePres
 	return generic_atoi(numStr.c_str());
 };
 
+generic_string getWorkplaceFromParam(ParamVector & params) {
+    generic_string WorkplaceFile;
+
+    if (!getParamValFromString(TEXT("-wp"), params, WorkplaceFile)) {        
+		WorkplaceFile = TEXT("");
+    }
+    return WorkplaceFile;
+}
+
 generic_string getEasterEggNameFromParam(ParamVector & params, unsigned char & type)
 {
 	generic_string EasterEggName;
@@ -379,6 +388,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)
 	cmdLineParams._alwaysOnTop = isInList(FLAG_ALWAYS_ON_TOP, params);
 	cmdLineParams._showLoadingTime = isInList(FLAG_LOADINGTIME, params);
 	cmdLineParams._isSessionFile = isInList(FLAG_OPENSESSIONFILE, params);
+    cmdLineParams._WorkplaceFile = getWorkplaceFromParam(params);
 	cmdLineParams._isRecursive = isInList(FLAG_RECURSIVE, params);
 	cmdLineParams._langType = getLangTypeFromParam(params);
 	cmdLineParams._localizationPath = getLocalizationPathFromParam(params);

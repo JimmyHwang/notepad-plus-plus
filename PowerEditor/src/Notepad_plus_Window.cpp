@@ -172,6 +172,14 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const TCHAR *cmdLin
 	if (nppGUI._rememberLastSession && !cmdLineParams->_isNoSession)
 		_notepad_plus_plus_core.loadLastSession();
 
+    if (cmdLineParams->_WorkplaceFile.length() > 0) {
+        _notepad_plus_plus_core.launchProjectPanelEx( 0, 
+                                                      &_notepad_plus_plus_core._pProjectPanel_1, 
+                                                      0, 
+                                                      cmdLineParams->_WorkplaceFile
+                                                      );
+    }
+      
 	if (not cmdLineParams->_isPreLaunch)
 	{
 		if (cmdLineParams->isPointValid())

@@ -590,6 +590,7 @@ private:
 	void launchClipboardHistoryPanel();
 	void launchFileSwitcherPanel();
 	void launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int panelID);
+    void launchProjectPanelEx(int cmdID, ProjectPanel ** pProjPanel, int panelID, generic_string WorkplaceFile);
 	void launchDocMap();
 	void launchFunctionList();
 	void launchFileBrowser(const std::vector<generic_string> & folders);

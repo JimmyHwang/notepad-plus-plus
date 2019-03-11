@@ -50,7 +50,7 @@ DWORD WINAPI Notepad_plus::monitorFileOnChange(void * params)
 
 	//The folder to watch :
 	WCHAR folderToMonitor[MAX_PATH];
-	lstrcpy(folderToMonitor, fullFileName);
+	wcscpy_s(folderToMonitor, fullFileName);
 
 	::PathRemoveFileSpecW(folderToMonitor);
 	
@@ -153,27 +153,31 @@ BufferID Notepad_plus::doOpen(const generic_string& fileName, bool isRecursive, 
 	bool isSnapshotMode = backupFileName != NULL && PathFileExists(backupFileName);
 	if (isSnapshotMode && !PathFileExists(longFileName)) // UNTITLED
 	{
-		lstrcpy(longFileName, fileName.c_str());
+		wcscpy_s(longFileName, fileName.c_str());
 	}
-
-
     _lastRecentFileList.remove(longFileName);
 
-    generic_string fileName2Find;
-	generic_string gs_fileName{fileName};
-    size_t res = gs_fileName.find_first_of(UNTITLED_STR);
+	generic_string fileName2Find;
+	generic_string gs_fileName{ fileName };
 
-    if (res != string::npos && res == 0)
-    {
-        fileName2Find = fileName;
-    }
-    else
-    {
-        fileName2Find = longFileName;
-    }
 
-    BufferID test = MainFileManager->getBufferFromName(fileName2Find.c_str());
-    if (test != BUFFER_INVALID && !isSnapshotMode)
+	// "fileName" could be:
+	// 1. full file path to open or create
+	// 2. "new N" or whatever renamed from "new N" to switch to (if user double-clicks the found entries of untitled documents, which is the results of running commands "Find in current doc" & "Find in opened docs")
+	// 3. a file name with relative path to open or create
+
+	// Search case 1 & 2 firstly
+	BufferID foundBufID = MainFileManager->getBufferFromName(fileName.c_str());
+
+	if (foundBufID == BUFFER_INVALID)
+		fileName2Find = longFileName;
+
+	// if case 1 & 2 not found, search case 3
+	if (foundBufID == BUFFER_INVALID)
+		foundBufID = MainFileManager->getBufferFromName(fileName2Find.c_str());
+
+	// If we found the document, then we don't open the existing doc. We return the found buffer ID instead.
+    if (foundBufID != BUFFER_INVALID && !isSnapshotMode)
     {
         if (_pTrayIco)
         {
@@ -185,7 +189,7 @@ BufferID Notepad_plus::doOpen(const generic_string& fileName, bool isRecursive, 
                 ::SendMessage(_pPublicInterface->getHSelf(), WM_SIZE, 0, 0);
             }
         }
-        return test;
+        return foundBufID;
     }
 
     if (isFileSession(longFileName) && PathFileExists(longFileName))
@@ -352,15 +356,18 @@ BufferID Notepad_plus::doOpen(const generic_string& fileName, bool isRecursive, 
             if (globbing)
             {
                 const TCHAR * substring = wcsrchr(fileName.c_str(), TCHAR('\\'));
-                size_t pos = substring - fileName.c_str();
+				if (substring)
+				{
+					size_t pos = substring - fileName.c_str();
 
-                patterns.push_back(substring + 1);
-                generic_string dir(fileName.c_str(), pos + 1); // use char * to evoke:
-                                                               // string (const char* s, size_t n);
-                                                               // and avoid to call (if pass string) :
-                                                               // string (const string& str, size_t pos, size_t len = npos);
+					patterns.push_back(substring + 1);
+					generic_string dir(fileName.c_str(), pos + 1); // use char * to evoke:
+																   // string (const char* s, size_t n);
+																   // and avoid to call (if pass string) :
+																   // string (const string& str, size_t pos, size_t len = npos);
 
-                getMatchedFileNames(dir.c_str(), patterns, fileNames, isRecursive, false);
+					getMatchedFileNames(dir.c_str(), patterns, fileNames, isRecursive, false);
+				}
             }
             else
             {
@@ -719,7 +726,7 @@ generic_string Notepad_plus::exts2Filters(generic_string exts) const
 
 	int j = 0;
 	bool stop = false;
-	for (size_t i = 0, len = exts.length(); i < len ; ++i)
+	for (size_t i = 0, len = exts.length(); i < len && j < MAX_PATH - 1; ++i)
 	{
 		if (extStr[i] == ' ')
 		{
@@ -1096,6 +1103,7 @@ bool Notepad_plus::fileCloseAllButCurrent()
 {
 	BufferID current = _pEditView->getCurrentBufferID();
 	int active = _pDocTab->getCurrentTabIndex();
+	const int activeViewID = currentView();
 	//closes all documents, makes the current view the only one visible
 
 	//first check if we need to save any file
@@ -1155,28 +1163,33 @@ bool Notepad_plus::fileCloseAllButCurrent()
 		}
 	}
 
+	// We may have to restore previous view after saving new files
+	switchEditViewTo(activeViewID);
+
 	bool isSnapshotMode = NppParameters::getInstance()->getNppGUI().isSnapshotMode();
 	//Then start closing, inactive view first so the active is left open
     if (bothActive())
     {
 		//first close all docs in non-current view, which gets closed automatically
 		//Set active tab to the last one closed.
-		activateBuffer(_pNonDocTab->getBufferByIndex(0), otherView());
+		const int viewNo = otherView();
+		activateBuffer(_pNonDocTab->getBufferByIndex(0), viewNo);
 
 		for (int32_t i = static_cast<int32_t>(_pNonDocTab->nbItem()) - 1; i >= 0; i--) 	//close all from right to left
 		{
-			doClose(_pNonDocTab->getBufferByIndex(i), otherView(), isSnapshotMode);
+			doClose(_pNonDocTab->getBufferByIndex(i), viewNo, isSnapshotMode);
 		}
     }
 
-	activateBuffer(_pDocTab->getBufferByIndex(0), currentView());
+	const int viewNo = currentView();
+	activateBuffer(_pDocTab->getBufferByIndex(0), viewNo);
 	for (int32_t i = static_cast<int32_t>(_pDocTab->nbItem()) - 1; i >= 0; i--)	//close all from right to left
 	{
 		if (i == active)	//dont close active index
 		{
 			continue;
 		}
-		doClose(_pDocTab->getBufferByIndex(i), currentView(), isSnapshotMode);
+		doClose(_pDocTab->getBufferByIndex(i), viewNo, isSnapshotMode);
 	}
 	return true;
 }
@@ -1394,17 +1407,59 @@ bool Notepad_plus::fileRename(BufferID id)
 	scnN.nmhdr.idFrom = (uptr_t)bufferID;
 	_pluginsManager.notify(&scnN);
 
-	FileDialog fDlg(_pPublicInterface->getHSelf(), _pPublicInterface->getHinst());
-
-    fDlg.setExtFilter(TEXT("All types"), TEXT(".*"), NULL);
-	setFileOpenSaveDlgFilters(fDlg);
-
-	fDlg.setDefFileName(buf->getFileName());
-	TCHAR *pfn = fDlg.doSaveDlg();
-
 	bool success = false;
-	if (pfn)
-		success = MainFileManager->moveFile(bufferID, pfn);
+	bool isFileExisting = PathFileExists(buf->getFullPathName()) != FALSE;
+	if (isFileExisting)
+	{
+		FileDialog fDlg(_pPublicInterface->getHSelf(), _pPublicInterface->getHinst());
+
+		fDlg.setExtFilter(TEXT("All types"), TEXT(".*"), NULL);
+		setFileOpenSaveDlgFilters(fDlg);
+
+		fDlg.setDefFileName(buf->getFileName());
+		TCHAR *pfn = fDlg.doSaveDlg();
+
+		if (pfn)
+			success = MainFileManager->moveFile(bufferID, pfn);
+	}
+	else
+	{
+		// We are just going to rename the tab nothing else
+		// So just rename the tab and rename the backup file too if applicable
+
+		// https://docs.microsoft.com/en-us/windows/desktop/FileIO/naming-a-file
+		// Reserved characters: < > : " / \ | ? *
+		std::wstring reservedChars = TEXT("<>:\"/\\|\?*");
+
+		generic_string title = _nativeLangSpeaker.getLocalizedStrFromID("tabrename-title", TEXT("Rename Current Tab"));
+		generic_string staticName = _nativeLangSpeaker.getLocalizedStrFromID("tabrename-newname", TEXT("New Name: "));
+
+		StringDlg strDlg;
+		strDlg.init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf(), title.c_str(), staticName.c_str(), buf->getFileName(), 0, reservedChars.c_str(), true);
+
+		TCHAR *tabNewName = reinterpret_cast<TCHAR *>(strDlg.doDialog());
+		if (tabNewName)
+		{
+			success = true;
+			buf->setFileName(tabNewName);
+			bool isSnapshotMode = NppParameters::getInstance()->getNppGUI().isSnapshotMode();
+			if (isSnapshotMode)
+			{
+				generic_string oldBackUpFile = buf->getBackupFileName();
+
+				// Change the backup file name and let MainFileManager decide the new filename
+				buf->setBackupFileName(TEXT(""));
+
+				// Create new backup
+				buf->setModifiedStatus(true);
+				bool bRes = MainFileManager->backupCurrentBuffer();
+
+				// Delete old backup
+				if (bRes)
+					::DeleteFile(oldBackUpFile.c_str());
+			}
+		}
+	}
 
 	scnN.nmhdr.code = success ? NPPN_FILERENAMED : NPPN_FILERENAMECANCEL;
 	_pluginsManager.notify(&scnN);
@@ -1661,7 +1716,11 @@ bool Notepad_plus::loadSession(Session & session, bool isSnapshotMode)
 		}
 	}
 	if (mainIndex2Update != -1)
+	{
+		_isFolding = true;
 		_mainEditView.syncFoldStateWith(session._mainViewFiles[mainIndex2Update]._foldStates);
+		_isFolding = false;
+	}
 
 
 	showView(SUB_VIEW);
@@ -1772,7 +1831,11 @@ bool Notepad_plus::loadSession(Session & session, bool isSnapshotMode)
 		}
 	}
 	if (subIndex2Update != -1)
+	{
+		_isFolding = true;
 		_subEditView.syncFoldStateWith(session._subViewFiles[subIndex2Update]._foldStates);
+		_isFolding = false;
+	}
 
 	_mainEditView.restoreCurrentPos();
 	_subEditView.restoreCurrentPos();
